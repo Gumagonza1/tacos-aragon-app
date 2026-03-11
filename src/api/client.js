@@ -4,10 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ─── Configuración ────────────────────────────────────────────────────────────
 // IP del servidor donde corre tacos-aragon-api
 // En desarrollo: la IP local de tu PC. En producción: el dominio/IP pública.
-const DEFAULT_BASE = 'http://192.168.1.100:3001';  // ← Cambiar a tu IP
+// Sin IP ni token por defecto — el usuario los configura en la pantalla Config
+// al instalar la app. Nunca hardcodear credenciales en el código fuente.
+const DEFAULT_BASE = '';
+const DEFAULT_TOKEN = '';
 
 let _baseURL = DEFAULT_BASE;
-let _token   = 'tacos-aragon-2025';  // Debe coincidir con API_TOKEN del servidor
+let _token   = DEFAULT_TOKEN;
 
 export async function cargarConfig() {
   try {
