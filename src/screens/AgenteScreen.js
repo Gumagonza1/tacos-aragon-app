@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import VoiceButton from '../components/VoiceButton';
+import MarkdownText from '../components/MarkdownText';
 import { api } from '../api/client';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../theme';
 
@@ -55,7 +56,10 @@ export default function AgenteScreen() {
       // Reemplazar el placeholder con la transcripción
       setMensajes(prev => {
         const copia = [...prev];
-        const idx   = copia.findLastIndex(m => m.texto === '🎤 [Mensaje de voz]');
+        let idx = -1;
+        for (let i = copia.length - 1; i >= 0; i--) {
+          if (copia[i].texto === '🎤 [Mensaje de voz]') { idx = i; break; }
+        }
         if (idx >= 0) copia[idx] = { rol: 'user', texto: `🎤 "${transcripcion}"` };
         return copia;
       });
@@ -69,16 +73,20 @@ export default function AgenteScreen() {
   }, []);
 
   function leerEnVoz(texto) {
-    Speech.stop();
-    const maxChars = 400;
-    const textoCorto = texto.length > maxChars ? texto.slice(0, maxChars) + '…' : texto;
-    setHablandoIA(true);
-    Speech.speak(textoCorto, {
-      language: 'es-MX',
-      rate:     1.0,
-      onDone:   () => setHablandoIA(false),
-      onError:  () => setHablandoIA(false),
-    });
+    try {
+      Speech.stop();
+      const maxChars = 400;
+      const textoCorto = texto.length > maxChars ? texto.slice(0, maxChars) + '…' : texto;
+      setHablandoIA(true);
+      Speech.speak(textoCorto, {
+        language: 'es-MX',
+        rate:     1.0,
+        onDone:   () => setHablandoIA(false),
+        onError:  () => setHablandoIA(false),
+      });
+    } catch {
+      setHablandoIA(false);
+    }
   }
 
   function detenerVoz() {
@@ -123,11 +131,11 @@ export default function AgenteScreen() {
         {mensajes.map((m, i) => (
           <View key={i} style={[styles.burbuja, m.rol === 'user' ? styles.burbujaUser : styles.burbujaBot]}>
             {m.rol === 'bot' && (
-              <Ionicons name="sparkles" size={14} color={COLORS.primary} style={{ marginBottom: 4 }} />
+              <Ionicons name="sparkles" size={13} color={COLORS.primary} style={{ marginBottom: 5 }} />
             )}
-            <Text style={[styles.burbujaTexto, m.rol === 'user' && styles.burbujaTextoUser]}>
+            <MarkdownText isUser={m.rol === 'user'}>
               {m.texto}
-            </Text>
+            </MarkdownText>
           </View>
         ))}
         {cargando && (

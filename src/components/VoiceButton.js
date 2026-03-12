@@ -34,6 +34,9 @@ export default function VoiceButton({ onAudioReady, disabled, size = 72 }) {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpiece: false,
       });
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
@@ -41,7 +44,7 @@ export default function VoiceButton({ onAudioReady, disabled, size = 72 }) {
       recordingRef.current = recording;
       setGrabando(true);
       iniciarPulso();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {};
     } catch (err) {
       console.error('Error al grabar:', err);
     }
@@ -51,12 +54,12 @@ export default function VoiceButton({ onAudioReady, disabled, size = 72 }) {
     if (!recordingRef.current) return;
     try {
       await recordingRef.current.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, shouldDuckAndroid: false });
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
       setGrabando(false);
       detenerPulso();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {};
       if (uri && onAudioReady) onAudioReady(uri);
     } catch (err) {
       console.error('Error al detener grabación:', err);

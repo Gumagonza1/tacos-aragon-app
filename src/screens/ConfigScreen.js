@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator, Linking, Clipboard,
+  ScrollView, Alert, ActivityIndicator, Linking,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { api, guardarConfig, cargarConfig } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,7 +19,7 @@ const SSH_INFO = {
 
 export default function ConfigScreen() {
   const [baseURL,   setBaseURL]   = useState('http://100.107.123.29:3001');
-  const [token,     setToken]     = useState('tacos-aragon-2025');
+  const [token,     setToken]     = useState('');
   const [probando,  setProbando]  = useState(false);
   const [status,    setStatus]    = useState(null);
   const [sshTab,    setSshTab]    = useState('claude');  // 'claude' | 'tablet' | 'setup'
@@ -47,8 +48,8 @@ export default function ConfigScreen() {
     Alert.alert('Guardado', 'Configuración guardada.');
   }
 
-  function copiar(texto) {
-    Clipboard.setString(texto);
+  async function copiar(texto) {
+    await Clipboard.setStringAsync(texto);
     Alert.alert('Copiado', texto);
   }
 

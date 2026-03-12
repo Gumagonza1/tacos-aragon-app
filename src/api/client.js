@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 // ─── Configuración ────────────────────────────────────────────────────────────
 // IP del servidor donde corre tacos-aragon-api
@@ -74,8 +75,12 @@ export const api = {
 
   // Voz: enviar como FormData multipart
   vozChat: async (sessionId, audioUri) => {
+    // Android: asegurar que el URI tenga el prefijo file://
+    const uri = Platform.OS === 'android' && !audioUri.startsWith('file://')
+      ? `file://${audioUri}`
+      : audioUri;
     const formData = new FormData();
-    formData.append('audio', { uri: audioUri, type: 'audio/m4a', name: 'voz.m4a' });
+    formData.append('audio', { uri, type: 'audio/m4a', name: 'voz.m4a' });
     formData.append('sessionId', sessionId);
     return axios.post(`${_baseURL}/api/agente/voz`, formData, {
       headers: { 'x-api-token': _token, 'Content-Type': 'multipart/form-data' },

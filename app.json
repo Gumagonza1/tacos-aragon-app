@@ -24,14 +24,16 @@
       "package": "com.tacosaragon.app",
       "permissions": [
         "RECORD_AUDIO",
-        "INTERNET"
+        "INTERNET",
+        "VIBRATE"
       ]
     },
     "plugins": [
       [
         "expo-av",
         { "microphonePermission": "Tacos Aragón necesita el micrófono para comandos de voz" }
-      ]
+      ],
+      "./plugins/withNetworkSecurity"
     ],
     "extra": {
       "eas": { "projectId": "a1606d7d-7c0c-4a79-b27a-ea620b87c338" }
