@@ -70,7 +70,7 @@ export const api = {
   listarFacturas: (params)            => getClient().get('/api/facturar/lista', { params }),
 
   // Agente IA
-  chat: (sessionId, mensaje)          => getClient().post('/api/agente/chat', { sessionId, mensaje }),
+  chat: (sessionId, mensaje)          => getClient().post('/api/agente/chat', { sessionId, mensaje, deviceTime: new Date().toISOString() }),
   resumenAgente: (periodo)            => getClient().get('/api/agente/resumen', { params: { periodo } }),
 
   // Voz: enviar como FormData multipart
@@ -82,6 +82,7 @@ export const api = {
     const formData = new FormData();
     formData.append('audio', { uri, type: 'audio/m4a', name: 'voz.m4a' });
     formData.append('sessionId', sessionId);
+    formData.append('deviceTime', new Date().toISOString());
     return axios.post(`${_baseURL}/api/agente/voz`, formData, {
       headers: { 'x-api-token': _token, 'Content-Type': 'multipart/form-data' },
       timeout: 30000,

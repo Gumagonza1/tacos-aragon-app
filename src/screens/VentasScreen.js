@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, TouchableWithoutFeedback,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import StatCard from '../components/StatCard';
@@ -208,9 +209,18 @@ export default function VentasScreen() {
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refresh} onRefresh={() => cargar(true)} colors={[COLORS.primary]} />}
       >
-        {/* Header período */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Ventas</Text>
+        {/* Header con gradiente */}
+        <LinearGradient colors={[COLORS.secondary, '#0f1923']} style={styles.header}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.headerSub}>PANEL DE VENTAS</Text>
+              <Text style={styles.headerTitle}>Ventas</Text>
+            </View>
+            <View style={styles.headerIcon}>
+              <Ionicons name="bar-chart" size={22} color={COLORS.primary} />
+            </View>
+          </View>
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.chips}>
               {PERIODOS.map(p => (
@@ -228,24 +238,24 @@ export default function VentasScreen() {
           {/* Date selectors for custom periods */}
           {periodo === 'dia' && (
             <TouchableOpacity style={styles.dateBtn} onPress={() => setModalOpen('dia')}>
-              <Ionicons name="calendar-outline" size={14} color="#FFF" />
+              <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
               <Text style={styles.dateBtnTxt}>{fmtFechaLarga(fechaDia)}</Text>
             </TouchableOpacity>
           )}
           {periodo === 'rango' && (
             <View style={styles.rangoRow}>
               <TouchableOpacity style={styles.dateBtn} onPress={() => setModalOpen('desde')}>
-                <Ionicons name="calendar-outline" size={14} color="#FFF" />
+                <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
                 <Text style={styles.dateBtnTxt}>Desde: {fmtFecha(fechaDesde)}</Text>
               </TouchableOpacity>
-              <Text style={{ color: '#FFF', marginHorizontal: 6 }}>–</Text>
+              <Text style={{ color: '#FFFFFF60', marginHorizontal: 6 }}>–</Text>
               <TouchableOpacity style={styles.dateBtn} onPress={() => setModalOpen('hasta')}>
-                <Ionicons name="calendar-outline" size={14} color="#FFF" />
+                <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
                 <Text style={styles.dateBtnTxt}>Hasta: {fmtFecha(fechaHasta)}</Text>
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </LinearGradient>
 
         <View style={styles.body}>
           {/* KPIs */}
@@ -265,7 +275,10 @@ export default function VentasScreen() {
 
           {/* Agrupar gráfica */}
           <View style={styles.row2}>
-            <Text style={styles.seccion}>Gráfica</Text>
+            <View style={styles.seccionRow}>
+              <Ionicons name="bar-chart-outline" size={14} color={COLORS.textMuted} />
+              <Text style={styles.seccion}>Gráfica</Text>
+            </View>
             <View style={styles.chips}>
               {AGRUPACIONES.map(a => (
                 <TouchableOpacity
@@ -302,7 +315,10 @@ export default function VentasScreen() {
           {/* Canal de venta */}
           {canalData.length > 0 && (
             <>
-              <Text style={styles.seccion}>Por Canal</Text>
+              <View style={styles.seccionRow}>
+                <Ionicons name="pie-chart-outline" size={14} color={COLORS.textMuted} />
+                <Text style={styles.seccion}>Por Canal</Text>
+              </View>
               <View style={[styles.card, styles.row]}>
                 <PieChart
                   data={canalData}
@@ -331,7 +347,10 @@ export default function VentasScreen() {
           {/* Top productos */}
           {resumen?.topProductos?.length > 0 && (
             <>
-              <Text style={styles.seccion}>Top Productos</Text>
+              <View style={styles.seccionRow}>
+                <Ionicons name="trophy-outline" size={14} color={COLORS.textMuted} />
+                <Text style={styles.seccion}>Top Productos</Text>
+              </View>
               <View style={styles.card}>
                 {resumen.topProductos.map((p, i) => (
                   <View key={i} style={styles.prodRow}>
@@ -347,7 +366,10 @@ export default function VentasScreen() {
           )}
 
           {/* Filtros */}
-          <Text style={styles.seccion}>Filtros</Text>
+          <View style={styles.seccionRow}>
+            <Ionicons name="options-outline" size={14} color={COLORS.textMuted} />
+            <Text style={styles.seccion}>Filtros</Text>
+          </View>
           <View style={styles.card}>
             {/* Tipo de pago */}
             <Text style={styles.filtLabel}>Tipo de pago</Text>
@@ -402,6 +424,7 @@ export default function VentasScreen() {
             )}
 
             <TouchableOpacity style={styles.aplicarBtn} onPress={() => cargar(true)}>
+              <Ionicons name="search" size={16} color="#FFF" />
               <Text style={styles.aplicarTxt}>Aplicar filtros</Text>
             </TouchableOpacity>
           </View>
@@ -443,54 +466,90 @@ const styles = StyleSheet.create({
 
   header: {
     paddingTop:    52,
-    paddingBottom: SPACING.sm,
+    paddingBottom: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    backgroundColor: COLORS.secondary,
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#FFF', marginBottom: SPACING.sm },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.sm,
+  },
+  headerSub:   { fontSize: 10, fontWeight: '700', color: COLORS.primary, letterSpacing: 1.5, marginBottom: 2 },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFF' },
+  headerIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: COLORS.primary + '20',
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   dateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: COLORS.primary + '50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: RADIUS.full,
-    marginTop: 6,
+    marginTop: 8,
     alignSelf: 'flex-start',
-    gap: 5,
+    gap: 6,
   },
-  dateBtnTxt: { color: '#FFF', fontSize: 13, fontWeight: '500' },
-  rangoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  dateBtnTxt: { color: '#FFF', fontSize: 13, fontWeight: '600' },
+  rangoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
 
   body:    { padding: SPACING.md },
-  seccion: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: SPACING.sm, marginTop: SPACING.md },
+  seccionRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.md, marginBottom: SPACING.sm },
+  seccion: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
   row:     { flexDirection: 'row', alignItems: 'flex-start' },
   row2:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
   chips: { flexDirection: 'row', gap: 6, paddingVertical: 4 },
-  chip:  { paddingHorizontal: 14, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
-  chipSm: { paddingHorizontal: 10, paddingVertical: 4 },
+  chip:  {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.card,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  chipSm: { paddingHorizontal: 10, paddingVertical: 5 },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipTxt:    { fontSize: 13, color: COLORS.text, fontWeight: '500' },
-  chipTxtActive: { color: '#FFF' },
+  chipTxtActive: { color: '#FFF', fontWeight: '700' },
 
-  card: { backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.sm, ...SHADOW.card },
+  card: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    ...SHADOW.card,
+    borderWidth: 1,
+    borderColor: COLORS.border + '60',
+  },
 
-  prodRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  prodBadge: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: SPACING.sm },
-  prodPos:   { fontSize: 12, fontWeight: '700' },
-  prodNom:   { flex: 1, fontSize: 13, color: COLORS.text },
+  prodRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  prodBadge: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: SPACING.sm },
+  prodPos:   { fontSize: 12, fontWeight: '800' },
+  prodNom:   { flex: 1, fontSize: 13, color: COLORS.text, fontWeight: '500' },
   prodCant:  { fontSize: 13, color: COLORS.primary, fontWeight: '700' },
 
-  leyendaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
-  leyendaDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
+  leyendaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  leyendaDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   leyendaTxt: { flex: 1, fontSize: 12, color: COLORS.text },
-  leyendaVal: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
+  leyendaVal: { fontSize: 12, color: COLORS.textMuted, fontWeight: '700' },
 
   totalRecibos: { fontSize: 12, color: COLORS.textMuted, textAlign: 'right', marginTop: 4, marginBottom: 2 },
-  filtLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6, fontWeight: '500' },
-  aplicarBtn: { marginTop: SPACING.md, backgroundColor: COLORS.primary, padding: SPACING.sm, borderRadius: RADIUS.full, alignItems: 'center' },
+  filtLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  aplicarBtn: {
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.primary,
+    padding: SPACING.sm + 2,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
   aplicarTxt: { color: '#FFF', fontWeight: '700', fontSize: 14 },
 });
 

@@ -72,11 +72,23 @@ export default function AgenteScreen() {
     }
   }, []);
 
+  function limpiarMarkdown(texto) {
+    return texto
+      .replace(/\*\*(.+?)\*\*/g, '$1')   // **negrita** → negrita
+      .replace(/\*(.+?)\*/g, '$1')        // *cursiva* → cursiva
+      .replace(/^#{1,3}\s/gm, '')         // ## encabezados
+      .replace(/^[-*]\s/gm, '')           // - listas
+      .replace(/^---+$/gm, '')            // líneas horizontales
+      .replace(/`[^`]+`/g, '')            // `código`
+      .trim();
+  }
+
   function leerEnVoz(texto) {
     try {
       Speech.stop();
+      const textoLimpio = limpiarMarkdown(texto);
       const maxChars = 400;
-      const textoCorto = texto.length > maxChars ? texto.slice(0, maxChars) + '…' : texto;
+      const textoCorto = textoLimpio.length > maxChars ? textoLimpio.slice(0, maxChars) + '…' : textoLimpio;
       setHablandoIA(true);
       Speech.speak(textoCorto, {
         language: 'es-MX',
