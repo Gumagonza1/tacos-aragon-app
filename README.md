@@ -106,7 +106,7 @@ El APK se instala directamente en la tablet del negocio sin pasar por Play Store
 
 ## Seguridad de red
 
-La app se comunica con `tacos-aragon-api` exclusivamente a través de **Tailscale VPN** (subred `100.64.0.0/10`).
+La app se comunica con `tacos-aragon-api` exclusivamente a través de **Tailscale VPN** 
 
 ## Archivos sensibles (no incluidos en el repo)
 
