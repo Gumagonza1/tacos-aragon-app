@@ -47,7 +47,6 @@ The APK is installed directly on the restaurant's tablet, without going through 
 ## Network Security
 
 The app communicates with `tacos-aragon-api` exclusively through **Tailscale VPN**:
-- Server only listens on subnet `100.64.0.0/10`
 - `API_TOKEN` travels in the `Authorization: Bearer <token>` header on every request
 
 ## Sensitive Files (not in repo)
