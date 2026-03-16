@@ -18,8 +18,10 @@ const SSH_INFO = {
 };
 
 export default function ConfigScreen() {
-  const [baseURL,   setBaseURL]   = useState('http://100.107.123.29:3001');
+  const [baseURL,   setBaseURL]   = useState('');
   const [token,     setToken]     = useState('');
+  const [cfoBase,   setCfoBase]   = useState('');
+  const [cfoToken,  setCfoToken]  = useState('');
   const [probando,  setProbando]  = useState(false);
   const [status,    setStatus]    = useState(null);
   const [sshTab,    setSshTab]    = useState('claude');  // 'claude' | 'tablet' | 'setup'
@@ -27,15 +29,28 @@ export default function ConfigScreen() {
   useEffect(() => {
     AsyncStorage.getItem('api_base_url').then(v => v && setBaseURL(v));
     AsyncStorage.getItem('api_token').then(v => v && setToken(v));
+    AsyncStorage.getItem('cfo_base_url').then(v => v && setCfoBase(v));
+    AsyncStorage.getItem('cfo_token').then(v => v && setCfoToken(v));
   }, []);
 
   async function probarConexion() {
     setProbando(true);
     setStatus(null);
-    await guardarConfig(baseURL, token);
+    await guardarConfig(baseURL, token, cfoBase, cfoToken);
     try {
       const res = await api.health();
-      setStatus({ ok: true, msg: `✅ Conectado — ${res.data.nombre}` });
+      // Verificar también un endpoint protegido para validar el token
+      try {
+        await api.dashboard();
+        setStatus({ ok: true, msg: `✅ Conectado — ${res.data.nombre}` });
+      } catch (authErr) {
+        const status = authErr?.response?.status;
+        if (status === 401) {
+          setStatus({ ok: false, msg: '❌ Token incorrecto (401 No autorizado)' });
+        } else {
+          setStatus({ ok: true, msg: `✅ Conectado — ${res.data.nombre}` });
+        }
+      }
     } catch (e) {
       setStatus({ ok: false, msg: `❌ ${e.message}` });
     } finally {
@@ -44,7 +59,7 @@ export default function ConfigScreen() {
   }
 
   async function guardar() {
-    await guardarConfig(baseURL, token);
+    await guardarConfig(baseURL, token, cfoBase, cfoToken);
     Alert.alert('Guardado', 'Configuración guardada.');
   }
 
@@ -87,6 +102,27 @@ export default function ConfigScreen() {
             value={token}
             onChangeText={setToken}
             placeholder="tacos-aragon-2025"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+
+          <Text style={styles.label}>URL del CFO Agent (puerto 3002)</Text>
+          <TextInput
+            style={styles.input}
+            value={cfoBase}
+            onChangeText={setCfoBase}
+            placeholder="http://IP_SERVIDOR:3002"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+
+          <Text style={styles.label}>Token del CFO Agent</Text>
+          <TextInput
+            style={styles.input}
+            value={cfoToken}
+            onChangeText={setCfoToken}
+            placeholder="cfo-token"
             secureTextEntry
             autoCapitalize="none"
           />

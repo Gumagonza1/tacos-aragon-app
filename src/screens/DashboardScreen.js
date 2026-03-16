@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
 import StatCard from '../components/StatCard';
 import { api } from '../api/client';
@@ -14,11 +15,14 @@ import { es } from 'date-fns/locale';
 
 const fmt$ = n => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+const fmt$D = n => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
 export default function DashboardScreen({ navigation }) {
-  const [data, setData]         = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [refresh, setRefresh]   = useState(false);
-  const [error, setError]       = useState(null);
+  const [data,          setData]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [refresh,       setRefresh]       = useState(false);
+  const [error,         setError]         = useState(null);
+  const [leyendoEnVoz,  setLeyendoEnVoz]  = useState(false);
 
   const cargar = useCallback(async (isRefresh = false) => {
     try {
@@ -53,6 +57,29 @@ export default function DashboardScreen({ navigation }) {
     </View>
   );
 
+  const leerResumenEnVoz = () => {
+    if (!data) return;
+    if (leyendoEnVoz) { Speech.stop(); setLeyendoEnVoz(false); return; }
+    const { hoy: h, semana: s } = data;
+    const top = h?.topProductos?.[0];
+    const texto = [
+      `Buenos días. Resumen de hoy:`,
+      `Ventas: ${fmt$D(h?.total)}.`,
+      `${h?.pedidos ?? 0} pedidos.`,
+      `Ticket promedio: ${fmt$D(h?.ticketPromedio)}.`,
+      top ? `El más vendido es ${top.nombre} con ${top.cantidad} piezas.` : '',
+      `Esta semana llevamos ${fmt$D(s?.total)} en ${s?.pedidos ?? 0} pedidos.`,
+    ].filter(Boolean).join(' ');
+    setLeyendoEnVoz(true);
+    Speech.speak(texto, {
+      language: 'es-MX',
+      rate: 0.9,
+      onDone: () => setLeyendoEnVoz(false),
+      onStopped: () => setLeyendoEnVoz(false),
+      onError: () => setLeyendoEnVoz(false),
+    });
+  };
+
   const { hoy, semana, mes, graficas } = data || {};
 
   // Preparar datos de la gráfica de últimos 7 días
@@ -84,12 +111,17 @@ export default function DashboardScreen({ navigation }) {
           <Text style={styles.saludo}>{saludoHora} 👋</Text>
           <Text style={styles.fecha}>{format(ahora, "EEEE d 'de' MMMM", { locale: es })}</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Agente')}>
-          <View style={styles.iaBadge}>
-            <Ionicons name="sparkles" size={16} color="#FFF" />
-            <Text style={styles.iaTxt}>IA</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <TouchableOpacity onPress={leerResumenEnVoz} style={[styles.iaBadge, leyendoEnVoz && { backgroundColor: '#FFFFFF40' }]}>
+            <Ionicons name={leyendoEnVoz ? 'stop-circle' : 'volume-high-outline'} size={16} color="#FFF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Agente')}>
+            <View style={styles.iaBadge}>
+              <Ionicons name="sparkles" size={16} color="#FFF" />
+              <Text style={styles.iaTxt}>IA</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
       <View style={styles.body}>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Modal, TouchableWithoutFeedback,
+  ActivityIndicator, RefreshControl, Modal, TouchableWithoutFeedback, Share,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import StatCard from '../components/StatCard';
 import { api } from '../api/client';
@@ -100,9 +101,12 @@ export default function VentasScreen() {
   const [grafica,    setGrafica]    = useState([]);
   const [tiposPago,  setTiposPago]  = useState([]);
   const [empleados,  setEmpleados]  = useState([]);
-  const [filtros,    setFiltros]    = useState({ tipo_pago: '', dining: '', employee_id: '' });
-  const [loading,    setLoading]    = useState(true);
-  const [refresh,    setRefresh]    = useState(false);
+  const [filtros,        setFiltros]        = useState({ tipo_pago: '', dining: '', employee_id: '' });
+  const [sinReembolsos,  setSinReembolsos]  = useState(false);
+  const [loading,        setLoading]        = useState(true);
+  const [refresh,        setRefresh]        = useState(false);
+  const [empleadosVentas,setEmpleadosVentas]= useState([]);
+  const [leyendoEnVoz,   setLeyendoEnVoz]  = useState(false);
 
   // Date state for custom periods
   const [fechaDia,   setFechaDia]   = useState(new Date());
@@ -111,19 +115,72 @@ export default function VentasScreen() {
   const [modalOpen,  setModalOpen]  = useState(null); // 'dia' | 'desde' | 'hasta' | null
 
   // Refs to always have latest state (avoids stale closure on filter apply)
-  const filtrosRef    = useRef(filtros);
+  const filtrosRef        = useRef(filtros);
+  const sinReembolsosRef  = useRef(sinReembolsos);
   const periodoRef    = useRef(periodo);
   const agruparRef    = useRef(agrupar);
   const fechaDiaRef   = useRef(fechaDia);
   const fechaDesdeRef = useRef(fechaDesde);
   const fechaHastaRef = useRef(fechaHasta);
 
-  useEffect(() => { filtrosRef.current  = filtros;   }, [filtros]);
+  useEffect(() => { filtrosRef.current       = filtros;        }, [filtros]);
+  useEffect(() => { sinReembolsosRef.current = sinReembolsos;  }, [sinReembolsos]);
   useEffect(() => { periodoRef.current  = periodo;   }, [periodo]);
   useEffect(() => { agruparRef.current  = agrupar;   }, [agrupar]);
   useEffect(() => { fechaDiaRef.current = fechaDia;  }, [fechaDia]);
   useEffect(() => { fechaDesdeRef.current = fechaDesde; }, [fechaDesde]);
   useEffect(() => { fechaHastaRef.current = fechaHasta; }, [fechaHasta]);
+
+  const leerResumenEnVoz = async () => {
+    if (!resumen && !data?.resumen) return;
+    const r = resumen || data?.resumen;
+    if (leyendoEnVoz) { Speech.stop(); setLeyendoEnVoz(false); return; }
+    const canal = Object.entries(r.porCanal || {})
+      .map(([c, v]) => `${v} ${c}`).join(', ');
+    const topProd = r.topProductos?.[0]
+      ? `El más vendido fue ${r.topProductos[0].nombre} con ${r.topProductos[0].cantidad} piezas.`
+      : '';
+    const texto = [
+      `Ventas: ${fmt$(r.total)}.`,
+      `${r.pedidos} pedidos.`,
+      `Ticket promedio: ${fmt$(r.ticketPromedio)}.`,
+      canal ? `Por canal: ${canal}.` : '',
+      topProd,
+      r.reembolsosCount ? `${r.reembolsosCount} reembolsos por ${fmt$(r.totalReembolso)}.` : '',
+    ].filter(Boolean).join(' ');
+    setLeyendoEnVoz(true);
+    Speech.speak(texto, {
+      language: 'es-MX',
+      rate: 0.9,
+      onDone: () => setLeyendoEnVoz(false),
+      onStopped: () => setLeyendoEnVoz(false),
+      onError: () => setLeyendoEnVoz(false),
+    });
+  };
+
+  const compartirReporte = async () => {
+    const r = resumen || data?.resumen;
+    if (!r) return;
+    const lineas = [
+      '📊 REPORTE DE VENTAS — Tacos Aragón',
+      `Período: ${PERIODOS.find(p => p.key === periodo)?.label || periodo}`,
+      '',
+      `💰 Total: ${fmt$(r.total)}`,
+      `📋 Pedidos: ${r.pedidos}`,
+      `🎯 Ticket promedio: ${fmt$(r.ticketPromedio)}`,
+      r.reembolsosCount ? `↩️ Reembolsos: ${r.reembolsosCount} (${fmt$(r.totalReembolso)})` : '',
+      '',
+      '📦 Por canal:',
+      ...Object.entries(r.porCanal || {}).map(([c, v]) => `  • ${c}: ${v} pedidos`),
+      '',
+      '🏆 Top productos:',
+      ...(r.topProductos || []).slice(0, 5).map((p, i) => `  ${i + 1}. ${p.nombre}: ${p.cantidad} pzas`),
+      empleadosVentas.length > 0 ? '' : '',
+      empleadosVentas.length > 0 ? '👤 Por empleado:' : '',
+      ...empleadosVentas.map(e => `  • ${e.nombre}: ${fmt$(e.total)} (${e.pedidos} pedidos)`),
+    ].filter(l => l !== undefined).join('\n');
+    await Share.share({ message: lineas, title: 'Reporte Tacos Aragón' });
+  };
 
   const getRango = () => {
     const per   = periodoRef.current;
@@ -159,16 +216,19 @@ export default function VentasScreen() {
     const f = filtrosRef.current;
     // Only send non-empty filter params
     const params = { desde, hasta };
-    if (f.tipo_pago)   params.tipo_pago   = f.tipo_pago;
-    if (f.dining)      params.dining      = f.dining;
-    if (f.employee_id) params.employee_id = f.employee_id;
+    if (f.tipo_pago)           params.tipo_pago      = f.tipo_pago;
+    if (f.dining)              params.dining         = f.dining;
+    if (f.employee_id)         params.employee_id    = f.employee_id;
+    if (sinReembolsosRef.current) params.sin_reembolsos = 'true';
     try {
-      const [ventasRes, grafRes] = await Promise.all([
+      const [ventasRes, grafRes, empVentasRes] = await Promise.all([
         api.ventas(params),
         api.graficaVentas({ desde, hasta, agrupar: agruparRef.current }),
+        api.empleadosVentas({ desde, hasta }).catch(() => ({ data: null })),
       ]);
       setData(ventasRes.data);
       setGrafica(grafRes.data || []);
+      setEmpleadosVentas(empVentasRes.data?.empleados || []);
     } catch (e) {
       console.error('[VentasScreen]', e?.response?.data || e.message);
     } finally {
@@ -191,17 +251,29 @@ export default function VentasScreen() {
     frontColor: COLORS.primary,
   }));
 
-  const canalData = Object.entries(data?.resumen?.porCanal || {}).map(([c, v], i) => ({
+  const resumen = data?.resumen;
+
+  const canalData = Object.entries(resumen?.porCanal || {}).map(([c, v], i) => ({
     value: v,
     color: PIE_COLORS[i % PIE_COLORS.length],
     text: c.slice(0, 8),
   }));
 
+  // Resuelve UUIDs de pago usando la lista de tiposPago ya cargada
+  const pagoData = Object.entries(resumen?.porPago || {})
+    .map(([id, valor], i) => {
+      const tipo = tiposPago.find(t => t.id === id);
+      return {
+        value: Math.round(valor),
+        nombre: tipo?.name || id.slice(0, 10),
+        color: PIE_COLORS[i % PIE_COLORS.length],
+      };
+    })
+    .sort((a, b) => b.value - a.value);
+
   if (loading) return (
     <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
   );
-
-  const { resumen } = data || {};
 
   return (
     <>
@@ -216,8 +288,16 @@ export default function VentasScreen() {
               <Text style={styles.headerSub}>PANEL DE VENTAS</Text>
               <Text style={styles.headerTitle}>Ventas</Text>
             </View>
-            <View style={styles.headerIcon}>
-              <Ionicons name="bar-chart" size={22} color={COLORS.primary} />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={leerResumenEnVoz} style={[styles.headerIcon, leyendoEnVoz && { backgroundColor: COLORS.primary + '50' }]}>
+                <Ionicons name={leyendoEnVoz ? 'stop-circle' : 'volume-high-outline'} size={20} color={leyendoEnVoz ? COLORS.primary : '#FFFFFFAA'} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={compartirReporte} style={styles.headerIcon}>
+                <Ionicons name="share-outline" size={20} color="#FFFFFFAA" />
+              </TouchableOpacity>
+              <View style={styles.headerIcon}>
+                <Ionicons name="bar-chart" size={22} color={COLORS.primary} />
+              </View>
             </View>
           </View>
 
@@ -262,10 +342,23 @@ export default function VentasScreen() {
           <View style={styles.row}>
             <StatCard titulo="Total" valor={fmt$(resumen?.total)} icono="cash" color={COLORS.success} />
             <View style={{ width: SPACING.sm }} />
-            <StatCard titulo="Pedidos" valor={resumen?.pedidos || 0} icono="receipt" color={COLORS.primary} />
+            <StatCard titulo="Pedidos" valor={resumen?.pedidos ?? 0} icono="receipt" color={COLORS.primary} />
             <View style={{ width: SPACING.sm }} />
             <StatCard titulo="Ticket" valor={fmt$(resumen?.ticketPromedio)} icono="trending-up" color={COLORS.info} />
           </View>
+          {(resumen?.reembolsosCount ?? 0) > 0 && (
+            <TouchableOpacity
+              style={[styles.reembolsoBadge, sinReembolsos && styles.reembolsoBadgeActive]}
+              onPress={() => { setSinReembolsos(v => !v); setTimeout(() => cargar(true), 50); }}
+            >
+              <Ionicons name="return-down-back" size={13} color={sinReembolsos ? '#FFF' : COLORS.danger} />
+              <Text style={[styles.reembolsoBadgeTxt, sinReembolsos && { color: '#FFF' }]}>
+                {resumen.reembolsosCount} reembolso{resumen.reembolsosCount > 1 ? 's' : ''} ({fmt$(resumen.totalReembolso)})
+                {sinReembolsos ? ' — ocultos' : ' — toca para ocultar'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {data?.total != null && (
             <Text style={styles.totalRecibos}>
               {data.total} recibo{data.total !== 1 ? 's' : ''} encontrado{data.total !== 1 ? 's' : ''}
@@ -359,6 +452,51 @@ export default function VentasScreen() {
                     </View>
                     <Text style={styles.prodNom} numberOfLines={1}>{p.nombre}</Text>
                     <Text style={styles.prodCant}>{p.cantidad} pzs</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Método de pago */}
+          {pagoData.length > 0 && (
+            <>
+              <View style={styles.seccionRow}>
+                <Ionicons name="card-outline" size={14} color={COLORS.textMuted} />
+                <Text style={styles.seccion}>Por Método de Pago</Text>
+              </View>
+              <View style={styles.card}>
+                {pagoData.map((p, i) => (
+                  <View key={i} style={[styles.prodRow, i === pagoData.length - 1 && { borderBottomWidth: 0 }]}>
+                    <View style={[styles.prodBadge, { backgroundColor: p.color + '20' }]}>
+                      <Ionicons name="card" size={14} color={p.color} />
+                    </View>
+                    <Text style={styles.prodNom}>{p.nombre}</Text>
+                    <Text style={[styles.prodCant, { color: COLORS.success }]}>{fmt$(p.value)}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Ventas por empleado */}
+          {empleadosVentas.length > 0 && (
+            <>
+              <View style={styles.seccionRow}>
+                <Ionicons name="people-outline" size={14} color={COLORS.textMuted} />
+                <Text style={styles.seccion}>Por Empleado</Text>
+              </View>
+              <View style={styles.card}>
+                {empleadosVentas.map((e, i) => (
+                  <View key={i} style={[styles.prodRow, i === empleadosVentas.length - 1 && { borderBottomWidth: 0 }]}>
+                    <View style={[styles.prodBadge, { backgroundColor: PIE_COLORS[i % PIE_COLORS.length] + '20' }]}>
+                      <Ionicons name="person" size={14} color={PIE_COLORS[i % PIE_COLORS.length]} />
+                    </View>
+                    <Text style={styles.prodNom}>{e.nombre}</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[styles.prodCant, { color: COLORS.primary }]}>{fmt$(e.total)}</Text>
+                      <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{e.pedidos} pedidos</Text>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -463,6 +601,16 @@ export default function VentasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   center:    { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  reembolsoBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.xs,
+    backgroundColor: COLORS.danger + '12',
+    borderWidth: 1, borderColor: COLORS.danger + '40',
+    borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 6,
+  },
+  reembolsoBadgeActive: { backgroundColor: COLORS.danger, borderColor: COLORS.danger },
+  reembolsoBadgeTxt: { fontSize: 11, color: COLORS.danger, fontWeight: '600', flex: 1 },
 
   header: {
     paddingTop:    52,

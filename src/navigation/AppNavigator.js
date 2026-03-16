@@ -10,7 +10,9 @@ import VentasScreen    from '../screens/VentasScreen';
 import AgenteScreen    from '../screens/AgenteScreen';
 import WhatsAppScreen  from '../screens/WhatsAppScreen';
 import FacturarScreen  from '../screens/FacturarScreen';
+import MonitorScreen   from '../screens/MonitorScreen';
 import ConfigScreen    from '../screens/ConfigScreen';
+import CfoScreen       from '../screens/CfoScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -31,6 +33,8 @@ export default function AppNavigator() {
               Agente:    focused ? 'sparkles'    : 'sparkles-outline',
               WhatsApp:  focused ? 'logo-whatsapp' : 'logo-whatsapp',
               Facturar:  focused ? 'document-text' : 'document-text-outline',
+              CFO:       focused ? 'briefcase'   : 'briefcase-outline',
+              Monitor:   focused ? 'eye'         : 'eye-outline',
               Config:    focused ? 'settings'    : 'settings-outline',
             };
             return (
@@ -48,6 +52,8 @@ export default function AppNavigator() {
         <Tab.Screen name="Agente"    component={AgenteScreen}   options={{ tabBarLabel: 'IA' }} />
         <Tab.Screen name="WhatsApp"  component={WhatsAppScreen} />
         <Tab.Screen name="Facturar"  component={FacturarScreen} />
+        <Tab.Screen name="CFO"       component={CfoScreen}      options={{ tabBarLabel: 'CFO' }} />
+        <Tab.Screen name="Monitor"   component={MonitorScreen}  options={{ tabBarLabel: 'Monitor' }} />
         <Tab.Screen name="Config"    component={ConfigScreen}   options={{ tabBarLabel: '' }} />
       </Tab.Navigator>
     </NavigationContainer>
