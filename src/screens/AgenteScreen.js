@@ -12,7 +12,7 @@ import MarkdownText from '../components/MarkdownText';
 import { api } from '../api/client';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../theme';
 
-const SESSION_ID = `app-${Date.now()}`;
+const SESSION_ID = `app-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export default function AgenteScreen() {
   const [mensajes,    setMensajes]    = useState([

@@ -1,46 +1,43 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { saveSecure, getSecure } from '../storage/secureStorage';
 
-// ─── Configuración ────────────────────────────────────────────────────────────
-// IP del servidor donde corre tacos-aragon-api
-// En desarrollo: la IP local de tu PC. En producción: el dominio/IP pública.
-// Sin IP ni token por defecto — el usuario los configura en la pantalla Config
-// al instalar la app. Nunca hardcodear credenciales en el código fuente.
-const DEFAULT_BASE = '';
-const DEFAULT_TOKEN = '';
-
-// CFO Agent — URL y token se configuran en la pantalla Config y se guardan en AsyncStorage.
-// Nunca hardcodear credenciales en el código fuente.
+// ─── Estado en memoria ────────────────────────────────────────────────────────
+// No hay valores por defecto — el usuario los configura en la pantalla Config.
+let _baseURL  = '';
+let _token    = '';
 let _cfoBase  = '';
 let _cfoToken = '';
 
 export function getCfoBase()  { return _cfoBase; }
 export function getCfoToken() { return _cfoToken; }
 
-let _baseURL = DEFAULT_BASE;
-let _token   = DEFAULT_TOKEN;
-
 export async function cargarConfig() {
   try {
-    const base     = await AsyncStorage.getItem('api_base_url');
-    const token    = await AsyncStorage.getItem('api_token');
-    const cfoBase  = await AsyncStorage.getItem('cfo_base_url');
-    const cfoToken = await AsyncStorage.getItem('cfo_token');
+    const [base, token, cfoBase, cfoToken] = await Promise.all([
+      getSecure('api_base_url'),
+      getSecure('api_token'),
+      getSecure('cfo_base_url'),
+      getSecure('cfo_token'),
+    ]);
     if (base)     _baseURL  = base;
     if (token)    _token    = token;
     if (cfoBase)  _cfoBase  = cfoBase;
     if (cfoToken) _cfoToken = cfoToken;
-  } catch {}
+  } catch (e) {
+    console.warn('[client/cargarConfig] Error cargando configuración:', e.message);
+  }
 }
 
 export async function guardarConfig(baseURL, token, cfoBase, cfoToken) {
   _baseURL  = baseURL;
   _token    = token;
-  if (cfoBase  !== undefined) { _cfoBase  = cfoBase;  await AsyncStorage.setItem('cfo_base_url', cfoBase); }
-  if (cfoToken !== undefined) { _cfoToken = cfoToken; await AsyncStorage.setItem('cfo_token', cfoToken); }
-  await AsyncStorage.setItem('api_base_url', baseURL);
-  await AsyncStorage.setItem('api_token', token);
+  await Promise.all([
+    saveSecure('api_base_url', baseURL),
+    saveSecure('api_token',    token),
+  ]);
+  if (cfoBase  !== undefined) { _cfoBase  = cfoBase;  await saveSecure('cfo_base_url', cfoBase); }
+  if (cfoToken !== undefined) { _cfoToken = cfoToken; await saveSecure('cfo_token',    cfoToken); }
 }
 
 // ─── Cliente HTTP ─────────────────────────────────────────────────────────────
@@ -172,7 +169,6 @@ export const api = {
 
   // Voz: enviar como FormData multipart
   vozChat: async (sessionId, audioUri) => {
-    // Android: asegurar que el URI tenga el prefijo file://
     const uri = Platform.OS === 'android' && !audioUri.startsWith('file://')
       ? `file://${audioUri}`
       : audioUri;

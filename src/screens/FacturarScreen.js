@@ -45,8 +45,10 @@ export default function FacturarScreen() {
     }
   }
 
+  const RFC_RE = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+
   async function buscarClienteFacturama() {
-    if (cliente.rfc.length < 12) return;
+    if (!RFC_RE.test(cliente.rfc)) return;
     try {
       const res = await api.buscarClienteFacturama(cliente.rfc);
       if (res.data?.Rfc) {
@@ -66,13 +68,18 @@ export default function FacturarScreen() {
       Alert.alert('Faltan datos', 'Completa RFC, nombre y código postal.');
       return;
     }
+    if (!RFC_RE.test(cliente.rfc)) {
+      Alert.alert('RFC inválido', 'El formato del RFC no es correcto (ej. XAXX010101000).');
+      return;
+    }
     setCargando(true);
     try {
       const res = await api.facturar({ ticket_datos: ticket, cliente });
       setFactura(res.data);
       setPaso(3);
     } catch (e) {
-      Alert.alert('Error al facturar', e.response?.data?.error || e.message);
+      console.error('[FacturarScreen/timbrar]', e.response?.data || e.message);
+      Alert.alert('Error al facturar', 'No se pudo procesar la factura. Verifica los datos e intenta de nuevo.');
     } finally {
       setCargando(false);
     }

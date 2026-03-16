@@ -1,6 +1,10 @@
 /**
  * Config plugin de Expo que agrega network_security_config.xml
- * para permitir tráfico HTTP a la IP interna de Tailscale (100.107.123.29).
+ * para permitir tráfico HTTP a la IP interna de Tailscale.
+ *
+ * La IP se lee de la variable de entorno TAILSCALE_IP.
+ * Si no está definida, el dominio-config de HTTP no se agrega
+ * y solo se permite HTTPS para todo el tráfico.
  *
  * Usa dos pasos separados:
  *  1. withAndroidManifest → agrega el atributo al <application>
@@ -10,12 +14,15 @@ const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins'
 const fs   = require('fs');
 const path = require('path');
 
+const TAILSCALE_IP = process.env.TAILSCALE_IP;
+
+// Si no hay IP configurada, solo HTTPS estricto. Si hay IP, se permite HTTP solo a esa IP.
 const NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-  <!-- Permitir HTTP al servidor interno de Tailscale -->
+${TAILSCALE_IP ? `  <!-- Permitir HTTP al servidor interno de Tailscale (solo red VPN privada) -->
   <domain-config cleartextTrafficPermitted="true">
-    <domain includeSubdomains="false">100.107.123.29</domain>
-  </domain-config>
+    <domain includeSubdomains="false">${TAILSCALE_IP}</domain>
+  </domain-config>` : '  <!-- Sin dominios HTTP permitidos — todo el tráfico requiere HTTPS -->'}
   <!-- El resto del tráfico requiere HTTPS -->
   <base-config cleartextTrafficPermitted="false">
     <trust-anchors>

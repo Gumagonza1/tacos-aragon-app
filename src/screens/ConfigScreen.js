@@ -1,71 +1,143 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator, Linking,
+  ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
-import { api, guardarConfig, cargarConfig } from '../api/client';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api, guardarConfig } from '../api/client';
+import { saveSecure, getSecure, removeSecure } from '../storage/secureStorage';
 import { COLORS, SPACING, RADIUS, SHADOW } from '../theme';
 
-// ─── Datos SSH del servidor (Tailscale) ───────────────────────────────────────
-const SSH_INFO = {
-  ip:        '100.107.123.29',
-  usuario:   'gumaro_gonzalez',
-  puerto:    22,
-  get cmd()  { return `ssh ${this.usuario}@${this.ip}`; },
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Devuelve true si la URL es HTTP y NO apunta a una red local/VPN privada */
+function esUrlPublicaInsegura(url) {
+  if (!url || !url.startsWith('http://')) return false;
+  return !/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|100\.)/.test(url);
+}
 
 export default function ConfigScreen() {
+  // ── API config ──────────────────────────────────────────────────────────────
   const [baseURL,   setBaseURL]   = useState('');
   const [token,     setToken]     = useState('');
   const [cfoBase,   setCfoBase]   = useState('');
   const [cfoToken,  setCfoToken]  = useState('');
+
+  // ── SSH config (no hardcodeado — el usuario lo configura) ──────────────────
+  const [sshIp,     setSshIp]     = useState('');
+  const [sshUser,   setSshUser]   = useState('');
+  const [botPath,   setBotPath]   = useState('');
+
+  // ── UI state ────────────────────────────────────────────────────────────────
   const [probando,  setProbando]  = useState(false);
   const [status,    setStatus]    = useState(null);
-  const [sshTab,    setSshTab]    = useState('claude');  // 'claude' | 'tablet' | 'setup'
+  const [sshTab,    setSshTab]    = useState('claude');
 
   useEffect(() => {
-    AsyncStorage.getItem('api_base_url').then(v => v && setBaseURL(v));
-    AsyncStorage.getItem('api_token').then(v => v && setToken(v));
-    AsyncStorage.getItem('cfo_base_url').then(v => v && setCfoBase(v));
-    AsyncStorage.getItem('cfo_token').then(v => v && setCfoToken(v));
+    (async () => {
+      const [base, tok, cfoB, cfoT, ip, user, bPath] = await Promise.all([
+        getSecure('api_base_url'),
+        getSecure('api_token'),
+        getSecure('cfo_base_url'),
+        getSecure('cfo_token'),
+        getSecure('ssh_ip'),
+        getSecure('ssh_user'),
+        getSecure('bot_path'),
+      ]);
+      if (base)  setBaseURL(base);
+      if (tok)   setToken(tok);
+      if (cfoB)  setCfoBase(cfoB);
+      if (cfoT)  setCfoToken(cfoT);
+      if (ip)    setSshIp(ip);
+      if (user)  setSshUser(user);
+      if (bPath) setBotPath(bPath);
+    })();
   }, []);
 
-  async function probarConexion() {
+  function sshCmd() {
+    if (!sshIp || !sshUser) return '(configura IP y usuario en la sección SSH)';
+    return `ssh ${sshUser}@${sshIp}`;
+  }
+
+  async function _hacerPrueba() {
     setProbando(true);
     setStatus(null);
     await guardarConfig(baseURL, token, cfoBase, cfoToken);
     try {
       const res = await api.health();
-      // Verificar también un endpoint protegido para validar el token
       try {
         await api.dashboard();
         setStatus({ ok: true, msg: `✅ Conectado — ${res.data.nombre}` });
       } catch (authErr) {
-        const status = authErr?.response?.status;
-        if (status === 401) {
+        if (authErr?.response?.status === 401) {
           setStatus({ ok: false, msg: '❌ Token incorrecto (401 No autorizado)' });
         } else {
           setStatus({ ok: true, msg: `✅ Conectado — ${res.data.nombre}` });
         }
       }
-    } catch (e) {
-      setStatus({ ok: false, msg: `❌ ${e.message}` });
+    } catch {
+      setStatus({ ok: false, msg: '❌ No se pudo conectar al servidor' });
     } finally {
       setProbando(false);
     }
   }
 
+  async function probarConexion() {
+    if (esUrlPublicaInsegura(baseURL) || esUrlPublicaInsegura(cfoBase)) {
+      Alert.alert(
+        'Advertencia de seguridad',
+        'La URL usa HTTP sin cifrado. Los tokens pueden ser interceptados en redes públicas. Usa HTTPS siempre que sea posible.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Continuar de todos modos', onPress: _hacerPrueba },
+        ],
+      );
+      return;
+    }
+    _hacerPrueba();
+  }
+
   async function guardar() {
     await guardarConfig(baseURL, token, cfoBase, cfoToken);
-    Alert.alert('Guardado', 'Configuración guardada.');
+    await Promise.all([
+      sshIp   ? saveSecure('ssh_ip',    sshIp)   : Promise.resolve(),
+      sshUser ? saveSecure('ssh_user',  sshUser) : Promise.resolve(),
+      botPath ? saveSecure('bot_path',  botPath) : Promise.resolve(),
+    ]);
+    Alert.alert('Guardado', 'Configuración guardada correctamente.');
+  }
+
+  async function cerrarSesion() {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Eliminar toda la configuración guardada (URL, tokens, SSH)?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar todo',
+          style: 'destructive',
+          onPress: async () => {
+            await Promise.all([
+              removeSecure('api_base_url'), removeSecure('api_token'),
+              removeSecure('cfo_base_url'), removeSecure('cfo_token'),
+              removeSecure('ssh_ip'),       removeSecure('ssh_user'),
+              removeSecure('bot_path'),
+            ]);
+            setBaseURL(''); setToken(''); setCfoBase(''); setCfoToken('');
+            setSshIp('');   setSshUser(''); setBotPath('');
+            setStatus(null);
+            Alert.alert('Listo', 'Configuración eliminada.');
+          },
+        },
+      ],
+    );
   }
 
   async function copiar(texto) {
+    if (!texto) return;
     await Clipboard.setStringAsync(texto);
-    Alert.alert('Copiado', texto);
+    Alert.alert('Copiado', 'Texto copiado al portapapeles.');
   }
 
   return (
@@ -90,7 +162,7 @@ export default function ConfigScreen() {
             style={styles.input}
             value={baseURL}
             onChangeText={setBaseURL}
-            placeholder="http://100.107.123.29:3001"
+            placeholder="https://IP_SERVIDOR:3001"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -101,7 +173,7 @@ export default function ConfigScreen() {
             style={styles.input}
             value={token}
             onChangeText={setToken}
-            placeholder="tacos-aragon-2025"
+            placeholder="tu-token-secreto"
             secureTextEntry
             autoCapitalize="none"
           />
@@ -111,7 +183,7 @@ export default function ConfigScreen() {
             style={styles.input}
             value={cfoBase}
             onChangeText={setCfoBase}
-            placeholder="http://IP_SERVIDOR:3002"
+            placeholder="https://IP_SERVIDOR:3002"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -122,7 +194,7 @@ export default function ConfigScreen() {
             style={styles.input}
             value={cfoToken}
             onChangeText={setCfoToken}
-            placeholder="cfo-token"
+            placeholder="cfo-token-secreto"
             secureTextEntry
             autoCapitalize="none"
           />
@@ -144,6 +216,12 @@ export default function ConfigScreen() {
               <Text style={styles.saveTxt}>Guardar</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Cerrar sesión */}
+          <TouchableOpacity style={styles.logoutBtn} onPress={cerrarSesion}>
+            <Ionicons name="log-out-outline" size={15} color={COLORS.danger} />
+            <Text style={styles.logoutTxt}> Borrar configuración guardada</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Acceso SSH remoto ─────────────────────────────────────── */}
@@ -157,10 +235,31 @@ export default function ConfigScreen() {
             </View>
           </View>
 
-          {/* Info del servidor */}
+          {/* Config SSH */}
+          <Text style={styles.label}>IP del servidor (Tailscale)</Text>
+          <TextInput
+            style={styles.input}
+            value={sshIp}
+            onChangeText={setSshIp}
+            placeholder="100.x.x.x"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          <Text style={styles.label}>Usuario SSH</Text>
+          <TextInput
+            style={styles.input}
+            value={sshUser}
+            onChangeText={setSshUser}
+            placeholder="tu_usuario"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          {/* Info calculada */}
           <View style={styles.infoGrid}>
-            <InfoFila label="IP (Tailscale)" valor={SSH_INFO.ip}     onCopy={() => copiar(SSH_INFO.ip)} />
-            <InfoFila label="Usuario"         valor={SSH_INFO.usuario} onCopy={() => copiar(SSH_INFO.usuario)} />
+            <InfoFila label="IP (Tailscale)" valor={sshIp || '—'}     onCopy={sshIp ? () => copiar(sshIp) : undefined} />
+            <InfoFila label="Usuario"         valor={sshUser || '—'}  onCopy={sshUser ? () => copiar(sshUser) : undefined} />
             <InfoFila label="Puerto"          valor="22" />
           </View>
 
@@ -185,7 +284,7 @@ export default function ConfigScreen() {
               <Text style={styles.instrTxt}>3. Selecciona <Text style={styles.bold}>+ Add SSH connection</Text></Text>
               <Text style={styles.instrTxt}>4. Ingresa estos datos:</Text>
 
-              <CodeBox label="SSH Host" valor={SSH_INFO.cmd} onCopy={() => copiar(SSH_INFO.cmd)} />
+              <CodeBox label="SSH Host" valor={sshCmd()} onCopy={sshIp && sshUser ? () => copiar(sshCmd()) : undefined} />
               <CodeBox label="Puerto"   valor="22" />
               <CodeBox label="Clave"    valor="~/.ssh/id_ed25519  (ver tab Instalar SSH)" />
 
@@ -206,21 +305,18 @@ export default function ConfigScreen() {
                   plat: 'Android / iOS',
                   icono: 'phone-portrait',
                   desc: 'La más completa. Soporta claves SSH, snippets y trabajo offline.',
-                  buscar: 'Termius SSH client',
                 },
                 {
                   app: 'JuiceSSH',
                   plat: 'Android',
                   icono: 'logo-android',
                   desc: 'Ligera y rápida. Ideal para Android.',
-                  buscar: 'JuiceSSH',
                 },
                 {
                   app: 'Blink Shell',
                   plat: 'iPad / iPhone',
                   icono: 'logo-apple',
                   desc: 'Tiene Claude Code integrado directamente en el shell.',
-                  buscar: 'Blink Shell Mosh SSH',
                 },
               ].map((a, i) => (
                 <View key={i} style={styles.appRow}>
@@ -233,10 +329,10 @@ export default function ConfigScreen() {
               ))}
 
               <Text style={[styles.instrTxt, { marginTop: SPACING.md }]}>Configuración en la app SSH:</Text>
-              <CodeBox label="Host"    valor={SSH_INFO.ip}      onCopy={() => copiar(SSH_INFO.ip)} />
-              <CodeBox label="Usuario" valor={SSH_INFO.usuario} onCopy={() => copiar(SSH_INFO.usuario)} />
+              <CodeBox label="Host"    valor={sshIp || '—'}    onCopy={sshIp ? () => copiar(sshIp) : undefined} />
+              <CodeBox label="Usuario" valor={sshUser || '—'}  onCopy={sshUser ? () => copiar(sshUser) : undefined} />
               <CodeBox label="Puerto"  valor="22" />
-              <CodeBox label="Comando" valor="claude" onCopy={() => copiar('claude')} />
+              <CodeBox label="Comando" valor="claude"           onCopy={() => copiar('claude')} />
             </View>
           )}
 
@@ -250,16 +346,26 @@ export default function ConfigScreen() {
                 </Text>
               </View>
 
-              <Text style={styles.instrTxt}>Los scripts están en:</Text>
+              <Text style={styles.label}>Ruta al folder bot-tacos (opcional)</Text>
+              <TextInput
+                style={[styles.input, { marginBottom: SPACING.sm }]}
+                value={botPath}
+                onChangeText={setBotPath}
+                placeholder="C:\ruta\a\bot-tacos"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <Text style={styles.instrTxt}>Scripts de instalación SSH:</Text>
               <CodeBox
                 label="Paso 1 – Instalar SSH (Admin)"
-                valor="C:\Users\gumaro_gonzalez\Desktop\bot-tacos\setup_ssh.ps1"
-                onCopy={() => copiar('C:\\Users\\gumaro_gonzalez\\Desktop\\bot-tacos\\setup_ssh.ps1')}
+                valor={botPath ? `${botPath}\\setup_ssh.ps1` : 'setup_ssh.ps1  (configura la ruta arriba)'}
+                onCopy={botPath ? () => copiar(`${botPath}\\setup_ssh.ps1`) : undefined}
               />
               <CodeBox
                 label="Paso 2 – Generar claves (usuario normal)"
-                valor="C:\Users\gumaro_gonzalez\Desktop\bot-tacos\setup_ssh_keys.ps1"
-                onCopy={() => copiar('C:\\Users\\gumaro_gonzalez\\Desktop\\bot-tacos\\setup_ssh_keys.ps1')}
+                valor={botPath ? `${botPath}\\setup_ssh_keys.ps1` : 'setup_ssh_keys.ps1  (configura la ruta arriba)'}
+                onCopy={botPath ? () => copiar(`${botPath}\\setup_ssh_keys.ps1`) : undefined}
               />
 
               <Text style={styles.instrTxt}>O corre en PowerShell como Admin:</Text>
@@ -269,9 +375,11 @@ export default function ConfigScreen() {
                 onCopy={() => copiar(`Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Start-Service sshd; Set-Service sshd -StartupType Automatic`)}
               />
 
-              <Text style={[styles.instrTxt, { marginTop: SPACING.sm, color: COLORS.success }]}>
-                ✅ Tailscale ya está instalado y activo ({SSH_INFO.ip}) — no necesitas abrir puertos en el router.
-              </Text>
+              {sshIp && (
+                <Text style={[styles.instrTxt, { marginTop: SPACING.sm, color: COLORS.success }]}>
+                  ✅ Tailscale activo ({sshIp}) — no necesitas abrir puertos en el router.
+                </Text>
+              )}
             </View>
           )}
         </View>
@@ -392,6 +500,11 @@ const styles = StyleSheet.create({
     padding: SPACING.sm, alignItems: 'center',
   },
   saveTxt: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    marginTop: SPACING.sm, padding: SPACING.sm,
+  },
+  logoutTxt: { color: COLORS.danger, fontSize: 13 },
 
   // SSH info grid
   infoGrid: { marginBottom: SPACING.sm },
